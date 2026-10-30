@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data pipeline flow MVP</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+:root{
+  --page:#faf9f5;--surface-1:#f1efe8;--surface-2:#ffffff;
+  --border:rgba(0,0,0,.12);--border-strong:rgba(0,0,0,.25);--border-stronger:rgba(0,0,0,.4);
+  --text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#8a8984;
+  --bg-accent:#e6f1fb;--text-accent:#185fa5;--border-accent:#378add;
+  --bg-success:#eaf3de;--text-success:#27500a;
+  --bg-warning:#faeeda;--text-warning:#633806;--border-warning:#ba7517;
+  --bg-danger:#fcebeb;--text-danger:#a32d2d;--border-danger:#e24b4a;
+  --radius:8px;--font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --page:#1a1a19;--surface-1:#2a2a28;--surface-2:#222221;
+    --border:rgba(255,255,255,.14);--border-strong:rgba(255,255,255,.28);--border-stronger:rgba(255,255,255,.45);
+    --text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;
+    --bg-accent:#0c447c;--text-accent:#85b7eb;--border-accent:#378add;
+    --bg-success:#27500a;--text-success:#c0dd97;
+    --bg-warning:#633806;--text-warning:#fac775;--border-warning:#ba7517;
+    --bg-danger:#791f1f;--text-danger:#f7c1c1;--border-danger:#e24b4a;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text-primary);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
+.wrap{max-width:1300px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;font-weight:500;margin:0 0 4px}
+.sub{font-size:14px;color:var(--text-secondary);margin:0 0 20px}
+button{background:transparent;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:6px 12px;font:inherit;font-size:14px;color:var(--text-primary);cursor:pointer}
+button:hover{background:var(--surface-1)}
+button:active{transform:scale(.98)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+
+/* layout: screenshot (left) | sample data (center) | meta information (right) */
+.lay{display:grid;grid-template-columns:280px minmax(0,1fr) 270px;gap:0 20px;align-items:start}
+.hd{grid-column:1;grid-row:1}
+.top{grid-column:2;grid-row:1;min-width:0}
+#shotcol{grid-column:1;grid-row:2;position:sticky;top:16px}
+#panel{grid-column:2;grid-row:2;min-width:0}
+#meta{grid-column:3;grid-row:2;min-width:0}
+@media (max-width:1240px){
+  .lay{grid-template-columns:300px minmax(0,1fr)}
+  #meta{grid-column:2;grid-row:3;margin-top:16px}
+}
+@media (max-width:900px){
+  .lay{grid-template-columns:minmax(0,1fr)}
+  .hd,.top,#shotcol,#panel,#meta{grid-column:1;grid-row:auto}
+  #shotcol{position:static;margin:0 0 12px}
+  #meta{margin-top:12px}
+}
+
+/* flow strip */
+#flow{display:flex;align-items:center;margin:0 0 10px}
+.nd{position:relative;z-index:1;flex:1 1 0;min-width:0;text-align:center;background:var(--surface-2);border:0.5px solid var(--border-strong);border-radius:12px;padding:10px 2px 8px;cursor:pointer}
+.nd i{font-size:22px;display:block;margin:0 0 4px;color:var(--text-primary)}
+.nd .nm{font-size:12px;font-weight:500;line-height:1.3}
+.nd .sb{font-size:11px;color:var(--text-secondary);line-height:1.3}
+.ed{flex:0 1 56px;min-width:28px;cursor:pointer;text-align:center;padding:4px 0}
+.ed .tk{position:relative;height:20px}
+.ed .tk:before{content:"";position:absolute;left:4px;right:12px;top:9px;height:1px;background:var(--border-stronger)}
+.ed .tk i{position:absolute;right:-2px;top:2px;font-size:16px;color:var(--text-secondary)}
+.ed .dot{position:absolute;left:4px;top:7px;width:6px;height:6px;border-radius:50%;background:var(--text-muted);opacity:0}
+.ed .lbl{font-size:11px;color:var(--text-secondary)}
+.nd.sel{border-color:var(--border-accent);background:var(--bg-accent);box-shadow:0 0 0 1.5px var(--border-accent)}
+.nd.sel .nm,.nd.sel i{color:var(--text-accent)}
+.ed.sel .tk:before{background:var(--text-accent);height:2px;top:9px}
+.ed.sel .lbl{color:var(--text-accent);font-weight:500}
+.ed.sel .dot{background:var(--text-accent)}
+.nd.stale{border-style:dashed;border-color:var(--border-warning);background:var(--bg-warning)}
+.nd.stale .nm,.nd.stale i{color:var(--text-warning)}
+.nd.bad{border-color:var(--border-danger);background:var(--bg-danger)}
+.nd.bad .nm,.nd.bad i{color:var(--text-danger)}
+.ed.stale .tk:before{background:var(--border-warning)}
+.ed.bad .tk:before{background:var(--text-danger)}
+.ed.bad .lbl{color:var(--text-danger);font-weight:500}
+.ed.hold .dot{animation:none!important;opacity:0}
+@keyframes mv{0%{transform:translateX(0);opacity:0}15%{opacity:1}85%{opacity:1}100%{transform:translateX(38px);opacity:0}}
+@media (prefers-reduced-motion:no-preference){.ed .dot{animation:mv 1.8s linear infinite}.ed.sel .dot{animation-duration:.9s}}
+@media (max-width:520px){.ed .lbl,.nd .sb{display:none}}
+.st{font-size:13px;padding:8px 12px;border-radius:var(--radius);background:var(--surface-1);color:var(--text-secondary);margin:0 0 12px;min-height:20px}
+.st.run{background:var(--bg-accent);color:var(--text-accent)}
+.st.err{background:var(--bg-danger);color:var(--text-danger)}
+
+/* sample data panel and meta box */
+#panel,#meta{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:1rem 1.25rem}
+.ph{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.ph .ic{width:36px;height:36px;border-radius:var(--radius);background:var(--bg-accent);color:var(--text-accent);display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}
+.pt{font-size:16px;font-weight:500}
+.ps{font-size:13px;color:var(--text-secondary)}
+.chip{margin-left:auto;font-size:12px;padding:2px 10px;border-radius:var(--radius);flex:none}
+.chip.ok{background:var(--bg-success);color:var(--text-success)}
+.chip.warn{background:var(--bg-warning);color:var(--text-warning)}
+.chip.err{background:var(--bg-danger);color:var(--text-danger)}
+.own{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px 16px;background:var(--surface-1);border-radius:var(--radius);padding:10px 12px;margin:0 0 14px}
+.own .l{font-size:12px;color:var(--text-secondary)}
+.own .v{font-size:14px;font-weight:500}
+.lab{font-size:12px;color:var(--text-secondary);margin:0 0 6px}
+.wb{border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:0 0 12px}
+.wh{background:var(--surface-1);padding:7px 12px;font-size:12px;color:var(--text-secondary);border-bottom:0.5px solid var(--border)}
+.wc{padding:10px 12px;font-size:13px}
+.cd{background:var(--surface-1);border-radius:var(--radius);padding:10px 12px;font-family:var(--font-mono);font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:4px 12px;font-size:13px;margin:0 0 12px}
+.kv span:nth-child(odd){color:var(--text-secondary)}
+#panel table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}
+#panel th{font-weight:500;text-align:left;color:var(--text-secondary)}
+#panel th,#panel td{padding:6px 8px;border-bottom:0.5px solid var(--border);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#panel tr:last-child td{border-bottom:none}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:0 0 12px}
+.kpi{background:var(--surface-1);border-radius:var(--radius);padding:10px 12px}
+.kpi .l{font-size:12px;color:var(--text-secondary)}
+.kpi .v{font-size:20px;font-weight:500}
+.br{display:grid;grid-template-columns:60px 1fr 80px;gap:8px;align-items:center;font-size:12px;margin:0 0 6px}
+.br .b{height:10px;border-radius:4px;background:var(--text-accent)}
+
+/* meta information box */
+.sch{display:flex;align-items:center;gap:8px;background:var(--bg-accent);color:var(--text-accent);border-radius:var(--radius);padding:7px 10px;font-size:13px;font-weight:500;margin:0 0 12px}
+.tb{position:relative;height:10px;background:var(--surface-1);border-radius:5px;margin:0 0 4px}
+.tb span{position:absolute;top:0;height:100%;background:var(--text-accent);border-radius:5px;min-width:5px}
+.tl{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted)}
+.mk{display:grid;gap:10px}
+.mk .l{font-size:12px;color:var(--text-secondary)}
+.mk .v{font-size:13px;overflow-wrap:anywhere}
+
+/* screenshot column (colored interface mockups, fixed colors like real screenshots) */
+.cap{font-size:11px;color:var(--text-muted);margin:6px 0 0}
+.fb{background:#fee2e2;color:#991b1b;padding:6px 10px;border-radius:8px 8px 0 0;font-size:12px;font-weight:600}
+.shot{border:0.5px solid var(--border-strong);border-radius:8px;overflow:hidden;background:#fff;color:#1f2328;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:11px;line-height:1.45}
+.fb + .shot{border-radius:0 0 8px 8px}
+.mono{font-family:var(--font-mono)}
+.dt{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.ok-chip{background:#d1fae5;color:#065f46;padding:1px 8px;border-radius:10px;font-weight:600;font-size:11px}
+.gd{width:8px;height:8px;border-radius:50%;background:#1d9a6c;display:inline-block}
+.stg{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);gap:4px 8px;padding:8px 10px;border-top:1px solid #eee}
+.stg span{color:#6b7280}
+.stg b{font-weight:600}
+.pm-top{background:#ff6c37;color:#fff;padding:7px 10px;font-weight:600}
+.pm-url{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid #e5e7eb;align-items:center}
+.pm-m{background:#e8f6ec;color:#0a7d33;font-weight:700;padding:3px 7px;border-radius:4px}
+.pm-in{flex:1;min-width:0;border:1px solid #d1d5db;border-radius:4px;padding:3px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font-mono)}
+.pm-send{background:#097bed;color:#fff;font-weight:600;padding:3px 10px;border-radius:4px}
+.pm-tabs{display:flex;gap:12px;padding:6px 10px 0;border-bottom:1px solid #e5e7eb;color:#6b7280}
+.pm-tabs b{color:#1f2328;border-bottom:2px solid #ff6c37;padding-bottom:4px;font-weight:600}
+.pm-au{padding:6px 10px;border-bottom:1px solid #e5e7eb;color:#4b5563}
+.pm-res{display:flex;gap:10px;padding:6px 10px;color:#6b7280;border-bottom:1px solid #e5e7eb;align-items:center;flex-wrap:wrap}
+.pm-ok{color:#0a7d33;font-weight:600}
+.jsn{padding:8px 10px;font-family:var(--font-mono);white-space:pre-wrap;background:#fafafa;overflow-wrap:anywhere}
+.jk{color:#0b6bcb}.js2{color:#1a7f37}
+.tm-bar{background:#3b3a36;color:#dcdcdc;padding:6px 10px;display:flex;align-items:center}
+.tm{background:#2b0a22;color:#e6e6e6;font-family:var(--font-mono);padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+.g{color:#8ae234}.bl{color:#729fcf}.y{color:#fce94f}.c{color:#34e2e2}.gy{color:#9a9a9a}
+.pg{height:8px;background:#444;border-radius:4px;margin:3px 0}
+.pg div{height:100%;background:#8ae234;border-radius:4px}
+.aw-top{background:#232f3e;color:#fff;padding:7px 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.aw-logo{width:12px;height:12px;background:#ff9900;border-radius:3px;display:inline-block}
+.aw-bc{padding:6px 10px;color:#0972d3;background:#f2f3f3;border-bottom:1px solid #d5dbdb;overflow-wrap:anywhere}
+.aw-tabs{display:flex;gap:12px;padding:6px 10px 0;border-bottom:1px solid #d5dbdb;color:#5f6b7a}
+.aw-tabs b{color:#0972d3;border-bottom:2px solid #0972d3;padding-bottom:4px;font-weight:600}
+.aw-tb{display:flex;gap:6px;padding:8px 10px;flex-wrap:wrap}
+.aw-btn{border:1px solid #0972d3;color:#0972d3;border-radius:14px;padding:2px 9px;font-weight:600}
+.aw-btn.p{background:#ff9900;border-color:#ff9900;color:#111}
+.aw-row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:8px;padding:6px 10px;border-top:1px solid #eaeded;align-items:center}
+.aw-row a{color:#0972d3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi{width:12px;height:14px;border-radius:2px;display:inline-block}
+.gl-g{display:flex;align-items:center;gap:4px;padding:12px 8px;background:#f7f8fa}
+.gl-n{flex:1;min-width:0;border-radius:6px;padding:6px 4px;text-align:center;font-weight:600;color:#fff}
+.gl-a{color:#6b7280}
+.ed-code{background:#1e1e2e;color:#d4d4d4;font-family:var(--font-mono);padding:8px 10px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+.cp{color:#c678dd}.cy{color:#e5c07b}.cg{color:#98c379}.co{color:#d19a66}
+.ft{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#f2f3f3;border-top:1px solid #d5dbdb;flex-wrap:wrap}
+.sc{display:flex;justify-content:space-between;padding:5px 10px;border-top:1px solid #eaeded}
+.ty{padding:0 8px;border-radius:10px;font-weight:600}
+.sf-top{background:#29b5e8;color:#fff;padding:7px 10px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.sf-run{background:#fff;color:#0b5c80;padding:1px 8px;border-radius:4px;font-weight:700}
+.sf-wh{padding:5px 10px;background:#e8f7fd;color:#0b5c80;border-bottom:1px solid #cfeaf5}
+.sq{padding:8px 10px;font-family:var(--font-mono);white-space:pre-wrap;background:#fff;overflow-wrap:anywhere}
+.kw{color:#0b6bcb;font-weight:700}.fn{color:#c026d3}
+.rg>div{display:grid;grid-template-columns:1fr 1fr;padding:4px 10px;border-top:1px solid #e5eef3}
+.rg .rh{background:#d9f1fa;color:#0b5c80;font-weight:600}
+.sp{display:flex;align-items:flex-end;gap:4px;height:46px;padding:8px 10px}
+.sp span{flex:1;background:#29b5e8;border-radius:2px 2px 0 0}
+.pb-top{background:#f2c811;color:#111;padding:7px 10px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.pb-ex{background:#fff;padding:1px 8px;border-radius:4px;font-weight:600}
+.pb-cv{background:#f3f2f1;padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pb-c{background:#fff;border-radius:4px;padding:6px 8px}
+.pb-l{color:#6b7280}
+.pb-v{font-size:18px;font-weight:600}
+.donut{width:44px;height:44px;border-radius:50%;background:conic-gradient(#01b8aa 0 38%,#e5e7eb 0 100%);position:relative;flex:none}
+.donut:after{content:"";position:absolute;inset:9px;background:#fff;border-radius:50%}
+.pb-b{display:grid;grid-template-columns:44px 1fr 40px;gap:6px;align-items:center;margin-top:4px}
+.pb-b div{height:9px;border-radius:3px}
+.ds{padding:8px 10px;display:grid;gap:4px}
+.dl{color:#6b7280;margin-top:4px}
+.sw{display:inline-block;width:28px;height:14px;border-radius:8px;background:#01b8aa;position:relative;vertical-align:middle}
+.sw:after{content:"";position:absolute;right:2px;top:2px;width:10px;height:10px;border-radius:50%;background:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h2 class="sr-only">Interactive data pipeline from a customer API through a database, S3, Glue, Snowflake and Power BI. Each stage and each arrow shows a probable tool interface on the left, sample data and owners in the center, and meta information such as users and run times on the right.</h2>
+<div class="lay">
+  <div class="hd">
+    <h1>Data pipeline flow</h1>
+    <p class="sub">Click any stage or arrow. Left: probable screenshot. Center: sample data and owners. Right: who uses it and when it runs.</p>
+  </div>
+  <div class="top">
+    <div style="display:flex;align-items:center;gap:8px;margin:0 0 12px;flex-wrap:wrap">
+      <button onclick="runFlow()"><i class="ti ti-player-play" aria-hidden="true"></i> Run pipeline</button>
+      <button onclick="resetFlow()">Reset</button>
+      <span style="font-size:13px;color:var(--text-secondary);margin-left:auto">Click any stage or arrow</span>
+    </div>
+    <div id="flow"></div>
+    <div class="st" id="st">All stages healthy. Click a stage or an arrow to see what is inside.</div>
+  </div>
+  <div id="shotcol"></div>
+  <div id="panel"></div>
+  <div id="meta"></div>
+</div>
+</div>
+<script>
+var DEF='All stages healthy. Click a stage or an arrow to see what is inside.';
+var I=[
+{t:'n',name:'Customer API',short:'API',sub:'REST',ic:'api',type:'Source',own:['Platform APIs','Jessica Miller','#plat-apis'],step:'Request received: GET /v1/customers/C-104582',
+ meta:{sched:'Always on, 24/7',win:[9,21],winTxt:'Peak 09:00 to 21:00 (store hours)',rows:[
+  ['Used by','POS systems in outlet stores<br>Website and mobile app<br>Engineers querying it manually'],
+  ['Availability','24/7, 99.9% target'],
+  ['Traffic','About 40 requests per second at peak'],
+  ['Busiest days','Weekends and sale days'],
+  ['Sensitive data','Yes: name, phone, email']]}},
+{t:'e',name:'API to database',short:'Lambda',ic:'arrow-right',type:'Pipeline',own:['Integration Engineering','Carlos Ramirez','#integration-oncall'],step:'Lambda validates the payload and upserts the row',
+ mech:'AWS Lambda (Python) behind API Gateway',trig:'Every API call',spd:'About 120 ms per record',cl:'Query running inside the arrow',
+ code:`INSERT INTO public.customers
+  (customer_id, first_name, last_name, email, phone, updated_at)
+VALUES (:id, :first, :last, :email, :phone, now())
+ON CONFLICT (customer_id) DO UPDATE
+  SET email = EXCLUDED.email,
+      phone = EXCLUDED.phone,
+      updated_at = now();`,
+ meta:{sched:'Real time, on every API call',win:[9,21],winTxt:'Busiest 09:00 to 21:00',rows:[
+  ['Who depends on it','Everything downstream: reports are only as fresh as these writes'],
+  ['Duration','About 120 ms per call'],
+  ['Retries','3 automatic retries, then a dead-letter queue'],
+  ['If it breaks','New and updated customers go missing from the database']]}},
+{t:'n',name:'Customer database',short:'Database',sub:'Postgres',ic:'database',type:'Storage',own:['Core Data Services','Neha Kapoor','#core-data'],step:'Row stored in customers (2,481,930 rows)',
+ meta:{sched:'Always on, 24/7',win:[9,21],winTxt:'Busiest 09:00 to 21:00',rows:[
+  ['Used by','Customer API (reads and writes)<br>Support team running manual queries<br>Nightly Spark extract'],
+  ['Backups','Daily snapshot at 01:00, kept 14 days'],
+  ['Maintenance','Sundays 03:00 to 04:00'],
+  ['Access','Writes only through the API; analysts read-only'],
+  ['Sensitive data','Yes: customer PII']]}},
+{t:'e',name:'Database to S3',short:'Spark',ic:'arrow-right',type:'Pipeline',own:['Data Platform','Rohan Iyer','#data-platform-oncall'],step:'Spark extracts rows changed since the last run',
+ mech:'Spark job on EMR, staged through HDFS',trig:'Airflow schedule, daily at 02:00 IST',spd:'About 180K changed rows in 4 min',cl:'Extract query and output location',
+ code:`SELECT *
+FROM public.customers
+WHERE updated_at > :last_run_watermark;
+
+-- Spark writes the result as Parquet to:
+-- s3://acme-retail-lake/raw/customers/dt=2026-10-28/`,
+ meta:{sched:'Daily at 02:00 IST',win:[2,2.25],winTxt:'02:00 to 02:15, including cluster start-up',rows:[
+  ['Why that hour','The database is quiet, so the extract is light'],
+  ['Duration','About 14 min, of which 4 min is processing'],
+  ['Data ready by','02:15'],
+  ['Next in line','Crawler, then the Glue job'],
+  ['If it fails','Reports stay one day behind']]}},
+{t:'n',name:'S3 raw storage',short:'S3',sub:'Raw files',ic:'bucket',type:'Storage',own:['Cloud Storage','Valentina Torres','#lake-storage'],step:'Raw Parquet files landed in S3',
+ meta:{sched:'New files land about 02:15',win:[2.2,2.3],winTxt:'Files land 02:14 to 02:15',rows:[
+  ['Used by','Glue and Athena jobs<br>Data scientists exploring raw data<br>Audit and compliance team'],
+  ['Retention','Raw files kept 90 days, then archived'],
+  ['Access','Read-only for most teams'],
+  ['Sensitive data','Yes: encrypted at rest']]}},
+{t:'e',name:'S3 to Glue',short:'Crawler',ic:'arrow-right',type:'Pipeline',own:['Data Engineering','Dev Patel','#data-eng'],step:'Crawler registers the schema in the Glue catalog',
+ mech:'AWS Glue Crawler and Data Catalog',trig:'After each raw load lands',spd:'About 1 min',cl:'Crawler setup and Athena check',
+ code:`Crawler : raw_customers_crawler
+Source  : s3://acme-retail-lake/raw/customers/
+Output  : glue_catalog.raw.customers (partitioned by dt)
+
+-- Now queryable in Athena:
+SELECT COUNT(*) FROM raw.customers WHERE dt = '2026-10-28';`,
+ meta:{sched:'Daily at about 02:16',win:[2.25,2.33],winTxt:'02:16 to 02:17',rows:[
+  ['Why it runs','Keeps the table schema in sync with new files'],
+  ['Duration','About 1 min'],
+  ['If the schema changes','Alert goes to Data Engineering'],
+  ['Next in line','The Glue transform job']]}},
+{t:'n',name:'Glue and Athena',short:'Glue',sub:'Transform',ic:'settings',type:'Processing',own:['Data Engineering','Emily Carter','#data-eng'],step:'Glue cleans and de-duplicates the data',
+ meta:{sched:'Job runs daily at 02:20',win:[2.33,2.45],winTxt:'02:20 to 02:26',rows:[
+  ['Used by','Data engineers who own the jobs<br>Analysts running ad hoc Athena queries<br>Data science team'],
+  ['Duration','About 6 min'],
+  ['Athena use','Mostly 10:00 to 18:00 on weekdays'],
+  ['Output','Clean, de-duplicated customer files'],
+  ['If it fails','Snowflake stays one day behind; alert to Data Engineering']]}},
+{t:'e',name:'Glue to Snowflake',short:'Snowpipe',ic:'arrow-right',type:'Pipeline',own:['Analytics Engineering','Mateo Fernandez','#analytics-eng-oncall'],step:'Snowpipe loads the curated files into Snowflake',
+ mech:'Glue ETL job (PySpark) and Snowpipe',trig:'When curated files arrive',spd:'About 6 min end to end',cl:'Transform, then load',
+ code:`df = spark.table("raw.customers").dropDuplicates(["customer_id"])
+df = df.withColumn("email", lower(col("email")))
+df.write.mode("overwrite").parquet("s3://acme-retail-lake/curated/customers/")
+
+-- Snowpipe then runs:
+COPY INTO analytics.customer.dim_customer
+FROM @curated_customers_stage FILE_FORMAT = (TYPE = PARQUET);`,
+ meta:{sched:'Loads automatically at about 02:26',win:[2.43,2.5],winTxt:'02:26 to 02:27',rows:[
+  ['Trigger','New curated files arriving'],
+  ['Latency','About 38 seconds per load'],
+  ['Data ready by','02:35'],
+  ['Watched by','Analytics Engineering'],
+  ['If it breaks','Warehouse tables stay one day behind']]}},
+{t:'n',name:'Snowflake warehouse',short:'Snowflake',sub:'Warehouse',ic:'snowflake',type:'Warehouse',own:['Analytics Engineering','Isha Verma','#analytics-eng'],step:'Customer tables are ready to query',
+ meta:{sched:'Fresh by 02:35 daily',win:[9,18],winTxt:'Busiest 09:00 to 18:00 on weekdays',rows:[
+  ['Used by','Marketing: campaign and loyalty analysis<br>Finance: revenue and forecasts<br>Merchandising and store operations<br>Data science: churn models'],
+  ['Month-end','Heavy finance queries in the last business days'],
+  ['Access','Role-based by team'],
+  ['Sensitive data','Yes: PII masked for most roles']]}},
+{t:'e',name:'Snowflake to Power BI',short:'Connector',ic:'arrow-right',type:'Pipeline',own:['BI Platform','Brandon Wright','#bi-support'],step:'Power BI refreshes its dataset from Snowflake',
+ mech:'Power BI Snowflake connector',trig:'Scheduled refresh, daily at 06:00 IST',spd:'About 3 min per refresh',cl:'Dataset query',
+ code:`-- Power BI dataset query
+SELECT customer_id, loyalty_tier, preferred_store, updated_at
+FROM analytics.customer.dim_customer;`,
+ meta:{sched:'Daily at 06:00 IST',win:[6,6.1],winTxt:'06:00 to 06:03',rows:[
+  ['Why 06:00','Dashboards are fresh before the workday starts'],
+  ['Duration','About 3 min'],
+  ['Credentials','OAuth, reviewed every 90 days'],
+  ['If it fails','Dashboards stay one day behind']]}},
+{t:'n',name:'Power BI reports',short:'Power BI',sub:'Reports',ic:'chart-bar',type:'Destination',own:['BI and Reporting','Camila Herrera','#bi-reports'],step:'Dashboards and C-suite PDFs are updated',
+ meta:{sched:'Refreshed daily at 06:00',win:[7,11],winTxt:'Busiest 07:00 to 11:00',rows:[
+  ['Used by','C-suite: weekly PDF report<br>Regional and store managers<br>Marketing and finance analysts'],
+  ['PDF export','Mondays at 08:00'],
+  ['Busiest','Monday mornings and month-end'],
+  ['Viewers','About 220 people']]}}
+];
+var sel=0,fail=null,timer=null,step=0,els=[];
+var flow=document.getElementById('flow');
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function code(s){return '<div class="cd">'+esc(s)+'</div>'}
+function box(h,c){return '<div class="wb"><div class="wh">'+h+'</div><div class="wc">'+c+'</div></div>'}
+function tbl(h,r,w){return '<table><colgroup>'+w.map(function(x){return '<col style="width:'+x+'%">'}).join('')+'</colgroup><thead><tr>'+h.map(function(x){return '<th>'+esc(x)+'</th>'}).join('')+'</tr></thead><tbody>'+r.map(function(row){return '<tr>'+row.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table>'}
+function kv(a){return '<div class="kv">'+a.map(function(x){return '<span>'+x[0]+'</span><span>'+x[1]+'</span>'}).join('')+'</div>'}
+var NB={
+0:function(){return '<div class="lab">Sample request: get customer information</div>'+code('GET /v1/customers/C-104582\nAuthorization: Bearer ********')+'<div class="lab" style="margin-top:12px">Response body (200 OK, 118 ms)</div>'+code('{\n  "customer_id": "C-104582",\n  "first_name": "Meera",\n  "last_name": "Kulkarni",\n  "email": "meera.k@example.com",\n  "phone": "+91 98765 43210",\n  "loyalty_tier": "Gold",\n  "preferred_store": "Pune-014",\n  "updated_at": "2026-10-28T07:42:10Z"\n}')},
+2:function(){return box('<i class="ti ti-database" aria-hidden="true"></i> customers-db.prod &middot; PostgreSQL 15 &middot; ap-south-1 &middot; online','<div class="lab">public.customers &middot; 2,481,930 rows</div>'+tbl(['customer_id','name','email','phone','updated_at'],[['C-104582','Meera Kulkarni','meera.k@example.com','+91 98765 43210','2026-10-28 07:42'],['C-104583','Carlos Mendoza','c.mendoza@example.com','+52 55 5550 0142','2026-10-28 07:44'],['C-104584','Emily Johnson','emily.j@example.com','+1 415 555 0178','2026-10-28 07:51'],['C-104585','Arjun Nair','arjun.n@example.com','+91 99887 76655','2026-10-28 08:03']],[15,18,26,21,20]))},
+4:function(){return box('<i class="ti ti-bucket" aria-hidden="true"></i> s3://acme-retail-lake/raw/customers/dt=2026-10-28/','<div class="lab">Earlier partitions: dt=2026-10-27/, dt=2026-10-26/</div>'+tbl(['Name','Size','Last modified'],[['part-0000.snappy.parquet','128 MB','02:14'],['part-0001.snappy.parquet','126 MB','02:14'],['part-0002.snappy.parquet','94 MB','02:15'],['_SUCCESS','0 B','02:15']],[56,16,28]))},
+6:function(){return box('<i class="ti ti-settings" aria-hidden="true"></i> AWS Glue &middot; ETL jobs',kv([['Job','customers_clean_etl'],['Status','Succeeded'],['Run time','6 min 12 s'],['Workers','10 (G.1X)'],['Rows in','2,481,930'],['Rows out','2,468,210'],['Duplicates removed','13,720']]))+box('Athena &middot; query editor',code('SELECT loyalty_tier, COUNT(*) AS customers\nFROM curated.customers\nGROUP BY loyalty_tier;'))},
+8:function(){return box('<i class="ti ti-snowflake" aria-hidden="true"></i> Worksheet &middot; ANALYTICS_WH (Small) &middot; ANALYTICS.CUSTOMER',code('SELECT loyalty_tier, COUNT(*) AS customers\nFROM analytics.customer.dim_customer\nGROUP BY loyalty_tier\nORDER BY customers DESC;')+'<div style="height:8px"></div>'+tbl(['loyalty_tier','customers'],[['Bronze','1,161,000'],['Silver','894,330'],['Gold','412,880']],[50,50]))},
+10:function(){var bars=[['Bronze','1,161,000',100],['Silver','894,330',77],['Gold','412,880',36]].map(function(b){return '<div class="br"><span>'+b[0]+'</span><div class="b" style="width:'+b[2]+'%"></div><span style="text-align:right">'+b[1]+'</span></div>'}).join('');return box('<i class="ti ti-chart-bar" aria-hidden="true"></i> Power BI &middot; Customer overview','<div class="kpis"><div class="kpi"><div class="l">Total customers</div><div class="v">2.47M</div></div><div class="kpi"><div class="l">Active in 90 days</div><div class="v">38%</div></div><div class="kpi"><div class="l">Gold members</div><div class="v">412K</div></div></div><div class="lab">Customers by loyalty tier</div>'+bars+'<div class="lab" style="margin:10px 0 0">Scheduled PDF export for the C-suite, Mondays 08:00</div>')}
+};
+function edgeBody(it){return '<div class="lab">How data moves</div>'+kv([['Mechanism',it.mech],['Trigger',it.trig],['Speed',it.spd]])+'<div class="lab">'+it.cl+'</div>'+code(it.code)}
+function panel(i){
+ var it=I[i],o=it.own;
+ var chip=fail===i?'<span class="chip err">Failed</span>':(fail!==null&&i>fail?'<span class="chip warn">Stale</span>':'<span class="chip ok">Healthy</span>');
+ var h='<div class="ph"><div class="ic"><i class="ti ti-'+it.ic+'" aria-hidden="true"></i></div><div><div class="pt">'+it.name+'</div><div class="ps">'+it.type+(it.t==='e'?' &middot; '+it.short:'')+'</div></div>'+chip+'</div>';
+ h+='<div class="own"><div><div class="l">Owner team</div><div class="v">'+o[0]+'</div></div><div><div class="l">Contact</div><div class="v">'+o[1]+'</div></div><div><div class="l">Reach out on</div><div class="v">'+o[2]+'</div></div></div>';
+ h+=it.t==='n'?NB[i]():edgeBody(it);
+ h+='<button onclick="toggleFail()"><i class="ti ti-alert-triangle" aria-hidden="true"></i> '+(fail===i?'Clear failure':'Simulate failure here')+'</button>';
+ h+='<div style="font-size:11px;color:var(--text-muted);margin-top:12px">Sample data. Tools and owners are placeholders.</div>';
+ return h;
+}
+
+/* meta information box (right) */
+function metaHTML(i){
+ var m=I[i].meta;
+ var a=m.win[0]/24*100,w=Math.max((m.win[1]-m.win[0])/24*100,2);
+ var h='<div class="ph"><div class="ic"><i class="ti ti-info-circle" aria-hidden="true"></i></div><div><div class="pt">Meta information</div><div class="ps">Who uses it and when it runs</div></div></div>';
+ h+='<div class="sch"><i class="ti ti-clock" aria-hidden="true"></i> '+m.sched+'</div>';
+ h+='<div class="tb"><span style="left:'+a.toFixed(1)+'%;width:'+w.toFixed(1)+'%"></span></div><div class="tl"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>';
+ h+='<div class="lab" style="margin:6px 0 14px">Highlighted: '+m.winTxt+'</div>';
+ h+='<div class="mk">'+m.rows.map(function(r){return '<div><div class="l">'+r[0]+'</div><div class="v">'+r[1]+'</div></div>'}).join('')+'</div>';
+ h+='<div style="font-size:11px;color:var(--text-muted);margin-top:14px">Sample data. Times in IST.</div>';
+ return h;
+}
+
+/* screenshot column (left) */
+var CAP=['Postman-style API client','AWS Lambda console, code view','Linux server terminal (SSH session)','EMR terminal running a Spark job','AWS S3 console, file location','AWS Glue console, crawler','AWS Glue Studio and Athena','Snowflake console, pipe monitor','Snowflake worksheet','Power BI service, dataset settings','Power BI report'];
+function J(a){return '{\n'+a.map(function(p,n){return '  <span class="jk">"'+p[0]+'"</span>: <span class="js2">"'+p[1]+'"</span>'+(n<a.length-1?',':'')}).join('\n')+'\n}'}
+var DOTS='<span class="dt" style="background:#ff5f56"></span><span class="dt" style="background:#ffbd2e"></span><span class="dt" style="background:#27c93f"></span>';
+function s3row(f,n,s){return '<div class="aw-row"><span class="fi" style="background:'+(f?'#f5b400':'#4f8df7')+'"></span><a>'+n+'</a><span>'+s+'</span></div>'}
+function sfrow(a,b){return '<div><span>'+a+'</span><span>'+b+'</span></div>'}
+function pbbar(n,c,w,v){return '<div class="pb-b"><span>'+n+'</span><div style="background:'+c+';width:'+w+'%"></div><span>'+v+'</span></div>'}
+function scrow(n,t){var c=t==='string'?'background:#e0f2fe;color:#0369a1':'background:#f3e8ff;color:#7e22ce';return '<div class="sc"><span class="mono">'+n+'</span><span class="ty" style="'+c+'">'+t+'</span></div>'}
+function hist(d){return '<div style="display:flex;justify-content:space-between"><span>'+d+' &middot; 3 min</span><span class="ok-chip">Completed</span></div>'}
+var UI={
+0:function(){return '<div class="shot"><div class="pm-top">API client &middot; Customers</div><div class="pm-url"><span class="pm-m">GET</span><span class="pm-in">{{base_url}}/v1/customers/C-104582</span><span class="pm-send">Send</span></div><div class="pm-tabs"><span>Params</span><b>Authorization</b><span>Headers</span><span>Body</span></div><div class="pm-au">Bearer Token &nbsp; <span class="mono">********</span></div><div class="pm-res"><span>Body</span><span>Headers</span><span class="pm-ok">200 OK</span><span>118 ms</span><span>412 B</span></div><div class="jsn">'+J([['customer_id','C-104582'],['first_name','Meera'],['last_name','Kulkarni'],['email','meera.k@example.com'],['phone','+91 98765 43210'],['loyalty_tier','Gold'],['updated_at','2026-10-28T07:42:10Z']])+'</div></div>'},
+1:function(){return '<div class="shot"><div class="aw-top"><span class="aw-logo"></span>Lambda &rsaquo; customers-ingest <span class="ok-chip" style="margin-left:auto">Active</span></div><div class="ed-code"><span class="cp">def</span> <span class="cy">handler</span>(event, ctx):\n    body = json.loads(event[<span class="cg">"body"</span>])\n    <span class="cy">validate</span>(body)\n    <span class="cy">upsert_customer</span>(body)\n    <span class="cp">return</span> {<span class="cg">"statusCode"</span>: <span class="co">201</span>}</div><div class="ft"><span class="gd"></span>Last invocation: Success &middot; 118 ms<span class="aw-btn p" style="margin-left:auto">Test</span></div></div>'},
+2:function(){return '<div class="shot"><div class="tm-bar">'+DOTS+'&nbsp;deploy@db-prod-01: ~</div><div class="tm"><span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ systemctl status postgresql\n<span class="g">&#9679;</span> postgresql@15-main.service\n   Active: <span class="g">active (running)</span> since 41 days ago\n<span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ psql customers -c "SELECT customer_id, email FROM customers LIMIT 3;"\n<span class="c"> customer_id |        email</span>\n-------------+----------------------\n C-104582    | meera.k@example.com\n C-104583    | c.mendoza@example.com\n C-104584    | emily.j@example.com\n<span class="gy">(3 rows)</span>\n<span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ <span style="background:#ddd;display:inline-block;width:6px;height:11px"></span></div></div>'},
+3:function(){return '<div class="shot"><div class="tm-bar">'+DOTS+'&nbsp;hadoop@emr-master: ~</div><div class="tm"><span class="g">hadoop@emr-master</span>:<span class="bl">~</span>$ spark-submit extract_customers.py\n<span class="c">INFO</span> read customers where updated_at &gt; watermark\n<span class="c">INFO</span> stage 3: <span class="y">180,204</span> rows\n<div class="pg"><div style="width:59%"></div></div><span class="gy">(38 + 4) / 64 tasks</span>\n<span class="c">INFO</span> wrote s3://acme-retail-lake/raw/customers/dt=2026-10-28/\n<span class="g">INFO job finished in 4m 02s</span></div></div>'},
+4:function(){return '<div class="shot"><div class="aw-top"><span class="aw-logo"></span>Amazon S3 <span style="opacity:.7">&rsaquo; Buckets</span></div><div class="aw-bc">acme-retail-lake / raw / customers / dt=2026-10-28 /</div><div class="aw-tabs"><b>Objects</b><span>Properties</span><span>Permissions</span></div><div class="aw-tb"><span class="aw-btn">Copy S3 URI</span><span class="aw-btn">Download</span><span class="aw-btn p">Upload</span></div>'+s3row(0,'part-0000.snappy.parquet','128 MB')+s3row(0,'part-0001.snappy.parquet','126 MB')+s3row(0,'part-0002.snappy.parquet','94 MB')+s3row(0,'_SUCCESS','0 B')+'</div>'},
+5:function(){return '<div class="shot"><div class="aw-top"><span class="aw-logo"></span>Glue &rsaquo; Crawlers <span class="ok-chip" style="margin-left:auto">Succeeded</span></div><div class="aw-bc" style="color:#111;font-weight:600">raw_customers_crawler</div><div class="stg"><span>Last run</span><b>02:16</b><span>Duration</span><b>54 s</b><span>Tables</span><b>1 updated</b><span>Added</span><b>0</b></div>'+scrow('customer_id','string')+scrow('email','string')+scrow('phone','string')+scrow('updated_at','timestamp')+'</div>'},
+6:function(){return '<div class="shot"><div class="aw-top"><span class="aw-logo"></span>Glue Studio &middot; customers_clean_etl <span class="ok-chip" style="margin-left:auto">Succeeded</span></div><div class="gl-g"><div class="gl-n" style="background:#2e7fd9">S3 source</div><span class="gl-a">&rarr;</span><div class="gl-n" style="background:#8a4fd6">Drop duplicates</div><span class="gl-a">&rarr;</span><div class="gl-n" style="background:#1d9a6c">S3 target</div></div><div class="stg"><span>Run time</span><b>6 min 12 s</b><span>Workers</span><b>10</b><span>Rows in</span><b>2.48M</b><span>Rows out</span><b>2.47M</b></div><div class="sq" style="border-top:1px solid #eee;background:#faf5ff"><span class="kw">SELECT</span> loyalty_tier, <span class="fn">COUNT</span>(*)\n<span class="kw">FROM</span> curated.customers\n<span class="kw">GROUP BY</span> loyalty_tier;</div></div>'},
+7:function(){return '<div class="shot"><div class="sf-top"><span>Pipes &middot; CUSTOMERS_PIPE</span><span class="ok-chip">RUNNING</span></div><div class="pb-cv" style="grid-template-columns:1fr 1fr 1fr;background:#f4fbfe"><div class="pb-c"><div class="pb-l">Files</div><div class="pb-v">3</div></div><div class="pb-c"><div class="pb-l">Rows</div><div class="pb-v">2.47M</div></div><div class="pb-c"><div class="pb-l">Latency</div><div class="pb-v">38 s</div></div></div><div class="pb-l" style="padding:6px 10px 0">Files loaded per hour</div><div class="sp"><span style="height:30%"></span><span style="height:55%"></span><span style="height:40%"></span><span style="height:80%"></span><span style="height:65%"></span><span style="height:95%"></span><span style="height:50%"></span><span style="height:70%"></span></div></div>'},
+8:function(){return '<div class="shot"><div class="sf-top"><span>Worksheets</span><span class="sf-run">&#9654; Run</span></div><div class="sf-wh">ANALYTICS_WH (Small) &middot; ANALYTICS.CUSTOMER</div><div class="sq"><span class="kw">SELECT</span> loyalty_tier,\n  <span class="fn">COUNT</span>(*) <span class="kw">AS</span> customers\n<span class="kw">FROM</span> analytics.customer.dim_customer\n<span class="kw">GROUP BY</span> loyalty_tier\n<span class="kw">ORDER BY</span> customers <span class="kw">DESC</span>;</div><div class="rg"><div class="rh"><span>LOYALTY_TIER</span><span>CUSTOMERS</span></div>'+sfrow('Bronze','1,161,000')+sfrow('Silver','894,330')+sfrow('Gold','412,880')+'</div></div>'},
+9:function(){return '<div class="shot"><div class="pb-top"><span>Dataset settings</span></div><div class="ds"><div class="dl">Data source</div><div>Snowflake &middot; acme-xy12345 <span class="ok-chip">OAuth connected</span></div><div class="dl">Scheduled refresh</div><div><span class="sw"></span> &nbsp;On &middot; Daily at 06:00 IST</div><div class="dl">Refresh history</div>'+hist('Oct 28, 06:00')+hist('Oct 27, 06:00')+hist('Oct 26, 06:00')+'</div></div>'},
+10:function(){return '<div class="shot"><div class="pb-top"><span>Customer overview</span><span class="pb-ex">Export &rsaquo; PDF</span></div><div class="pb-cv"><div class="pb-c"><div class="pb-l">Total customers</div><div class="pb-v">2.47M</div></div><div class="pb-c" style="display:flex;align-items:center;gap:8px"><div class="donut"></div><div><div class="pb-l">Active 90 days</div><div class="pb-v">38%</div></div></div><div class="pb-c" style="grid-column:1/3"><div class="pb-l">Customers by loyalty tier</div>'+pbbar('Bronze','#c2703a',100,'1.16M')+pbbar('Silver','#8c9aa5',77,'894K')+pbbar('Gold','#f2c811',36,'413K')+'</div></div></div>'}
+};
+function shotHTML(i){
+ var banner=fail===i?'<div class="fb">Failure detected. Alert sent to '+I[i].own[2]+'</div>':'';
+ return banner+UI[i]()+'<div class="cap">Probable interface: '+CAP[i]+'</div>';
+}
+
+function build(){
+ var k=0;
+ I.forEach(function(it,i){
+  var d=document.createElement('div');d.setAttribute('role','button');d.tabIndex=0;d.setAttribute('aria-label',it.name);
+  if(it.t==='n'){d.className='nd';d.innerHTML='<i class="ti ti-'+it.ic+'" aria-hidden="true"></i><div class="nm">'+it.short+'</div><div class="sb">'+it.sub+'</div>';}
+  else{d.className='ed';d.innerHTML='<div class="tk"><span class="dot" style="animation-delay:-'+(k*0.35)+'s"></span><i class="ti ti-chevron-right" aria-hidden="true"></i></div><div class="lbl">'+it.short+'</div>';k++;}
+  d.onclick=function(){pick(i)};
+  d.onkeydown=function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick(i)}};
+  flow.appendChild(d);els.push(d);
+ });
+}
+function paint(){
+ els.forEach(function(d,i){
+  var c=I[i].t==='n'?'nd':'ed';
+  if(i===sel)c+=' sel';
+  if(fail!==null){if(i===fail)c+=' bad';else if(i>fail)c+=' stale';if(I[i].t==='e'&&i>=fail)c+=' hold';}
+  d.className=c;
+ });
+}
+function show(){
+ document.getElementById('panel').innerHTML=panel(sel);
+ document.getElementById('shotcol').innerHTML=shotHTML(sel);
+ document.getElementById('meta').innerHTML=metaHTML(sel);
+}
+function setSt(m,t){var s=document.getElementById('st');s.className='st'+(m?' '+m:'');s.textContent=t}
+function failMsg(){
+ var it=I[fail],o=it.own,down=[];
+ for(var j=fail+1;j<I.length;j++){if(I[j].t==='n')down.push(I[j].short)}
+ return it.name+' failed. Stale downstream: '+(down.join(', ')||'none')+'. Contact '+o[1]+' ('+o[0]+') on '+o[2]+'.';
+}
+function idle(){fail===null?setSt('',DEF):setSt('err',failMsg())}
+function pick(i){clearTimeout(timer);sel=i;paint();show();idle()}
+function tick(){
+ sel=step;paint();show();
+ setSt('run','Step '+(step+1)+' of '+I.length+': '+I[step].step);
+ step++;
+ if(step<I.length){timer=setTimeout(tick,I[step-1].t==='n'?1100:1600)}
+ else{timer=setTimeout(function(){setSt('','Run complete. Every stage and every arrow has an owner you can contact.')},1600)}
+}
+function runFlow(){clearTimeout(timer);fail=null;step=0;tick()}
+function toggleFail(){clearTimeout(timer);fail=(fail===sel)?null:sel;paint();show();idle()}
+function resetFlow(){clearTimeout(timer);fail=null;sel=0;paint();show();setSt('',DEF)}
+build();paint();show();
+</script>
+</body>
+</html>
