@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>Data pipeline flow MVP</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
 <style>
 :root{
-  --page:#faf9f5;--surface-1:#f1efe8;--surface-2:#ffffff;
+  color-scheme:light;
+  --page:#f4f7fb;--surface-1:#eef2f7;--surface-2:#ffffff;
   --border:rgba(0,0,0,.12);--border-strong:rgba(0,0,0,.25);--border-stronger:rgba(0,0,0,.4);
   --text-primary:#1f1e1d;--text-secondary:#5f5e5a;--text-muted:#8a8984;
   --bg-accent:#e6f1fb;--text-accent:#185fa5;--border-accent:#378add;
@@ -16,23 +18,12 @@
   --bg-danger:#fcebeb;--text-danger:#a32d2d;--border-danger:#e24b4a;
   --radius:8px;--font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
-@media (prefers-color-scheme:dark){
-  :root{
-    --page:#1a1a19;--surface-1:#2a2a28;--surface-2:#222221;
-    --border:rgba(255,255,255,.14);--border-strong:rgba(255,255,255,.28);--border-stronger:rgba(255,255,255,.45);
-    --text-primary:#f1efe8;--text-secondary:#b4b2a9;--text-muted:#888780;
-    --bg-accent:#0c447c;--text-accent:#85b7eb;--border-accent:#378add;
-    --bg-success:#27500a;--text-success:#c0dd97;
-    --bg-warning:#633806;--text-warning:#fac775;--border-warning:#ba7517;
-    --bg-danger:#791f1f;--text-danger:#f7c1c1;--border-danger:#e24b4a;
-  }
-}
 *{box-sizing:border-box}
 body{margin:0;background:var(--page);color:var(--text-primary);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
 .wrap{max-width:1300px;margin:0 auto;padding:24px 16px 48px}
 h1{font-size:22px;font-weight:500;margin:0 0 4px}
 .sub{font-size:14px;color:var(--text-secondary);margin:0 0 20px}
-button{background:transparent;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:6px 12px;font:inherit;font-size:14px;color:var(--text-primary);cursor:pointer}
+button{background:#fff;border:0.5px solid var(--border-strong);border-radius:var(--radius);padding:6px 12px;font:inherit;font-size:14px;color:var(--text-primary);cursor:pointer}
 button:hover{background:var(--surface-1)}
 button:active{transform:scale(.98)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
@@ -232,7 +223,7 @@ var I=[
   ['Traffic','About 40 requests per second at peak'],
   ['Busiest days','Weekends and sale days'],
   ['Sensitive data','Yes: name, phone, email']]}},
-{t:'e',name:'API to database',short:'Lambda',ic:'arrow-right',type:'Pipeline',own:['Integration Engineering','Carlos Ramirez','#integration-oncall'],step:'Lambda validates the payload and upserts the row',
+{t:'e',name:'API to database',short:'Lambda',ic:'arrow-right',type:'Pipeline',own:['Integration Engineering','Daniel Thompson','#integration-oncall'],step:'Lambda validates the payload and upserts the row',
  mech:'AWS Lambda (Python) behind API Gateway',trig:'Every API call',spd:'About 120 ms per record',cl:'Query running inside the arrow',
  code:`INSERT INTO public.customers
   (customer_id, first_name, last_name, email, phone, updated_at)
@@ -246,14 +237,14 @@ ON CONFLICT (customer_id) DO UPDATE
   ['Duration','About 120 ms per call'],
   ['Retries','3 automatic retries, then a dead-letter queue'],
   ['If it breaks','New and updated customers go missing from the database']]}},
-{t:'n',name:'Customer database',short:'Database',sub:'Postgres',ic:'database',type:'Storage',own:['Core Data Services','Neha Kapoor','#core-data'],step:'Row stored in customers (2,481,930 rows)',
+{t:'n',name:'Customer database',short:'Database',sub:'Postgres',ic:'database',type:'Storage',own:['Core Data Services','Sarah Williams','#core-data'],step:'Row stored in customers (2,481,930 rows)',
  meta:{sched:'Always on, 24/7',win:[9,21],winTxt:'Busiest 09:00 to 21:00',rows:[
   ['Used by','Customer API (reads and writes)<br>Support team running manual queries<br>Nightly Spark extract'],
   ['Backups','Daily snapshot at 01:00, kept 14 days'],
   ['Maintenance','Sundays 03:00 to 04:00'],
   ['Access','Writes only through the API; analysts read-only'],
   ['Sensitive data','Yes: customer PII']]}},
-{t:'e',name:'Database to S3',short:'Spark',ic:'arrow-right',type:'Pipeline',own:['Data Platform','Rohan Iyer','#data-platform-oncall'],step:'Spark extracts rows changed since the last run',
+{t:'e',name:'Database to S3',short:'Spark',ic:'arrow-right',type:'Pipeline',own:['Data Platform','Michael Anderson','#data-platform-oncall'],step:'Spark extracts rows changed since the last run',
  mech:'Spark job on EMR, staged through HDFS',trig:'Airflow schedule, daily at 02:00 IST',spd:'About 180K changed rows in 4 min',cl:'Extract query and output location',
  code:`SELECT *
 FROM public.customers
@@ -267,13 +258,13 @@ WHERE updated_at > :last_run_watermark;
   ['Data ready by','02:15'],
   ['Next in line','Crawler, then the Glue job'],
   ['If it fails','Reports stay one day behind']]}},
-{t:'n',name:'S3 raw storage',short:'S3',sub:'Raw files',ic:'bucket',type:'Storage',own:['Cloud Storage','Valentina Torres','#lake-storage'],step:'Raw Parquet files landed in S3',
+{t:'n',name:'S3 raw storage',short:'S3',sub:'Raw files',ic:'bucket',type:'Storage',own:['Cloud Storage','Ashley Taylor','#lake-storage'],step:'Raw Parquet files landed in S3',
  meta:{sched:'New files land about 02:15',win:[2.2,2.3],winTxt:'Files land 02:14 to 02:15',rows:[
   ['Used by','Glue and Athena jobs<br>Data scientists exploring raw data<br>Audit and compliance team'],
   ['Retention','Raw files kept 90 days, then archived'],
   ['Access','Read-only for most teams'],
   ['Sensitive data','Yes: encrypted at rest']]}},
-{t:'e',name:'S3 to Glue',short:'Crawler',ic:'arrow-right',type:'Pipeline',own:['Data Engineering','Dev Patel','#data-eng'],step:'Crawler registers the schema in the Glue catalog',
+{t:'e',name:'S3 to Glue',short:'Crawler',ic:'arrow-right',type:'Pipeline',own:['Data Engineering','Christopher Davis','#data-eng'],step:'Crawler registers the schema in the Glue catalog',
  mech:'AWS Glue Crawler and Data Catalog',trig:'After each raw load lands',spd:'About 1 min',cl:'Crawler setup and Athena check',
  code:`Crawler : raw_customers_crawler
 Source  : s3://acme-retail-lake/raw/customers/
@@ -293,7 +284,7 @@ SELECT COUNT(*) FROM raw.customers WHERE dt = '2026-10-28';`,
   ['Athena use','Mostly 10:00 to 18:00 on weekdays'],
   ['Output','Clean, de-duplicated customer files'],
   ['If it fails','Snowflake stays one day behind; alert to Data Engineering']]}},
-{t:'e',name:'Glue to Snowflake',short:'Snowpipe',ic:'arrow-right',type:'Pipeline',own:['Analytics Engineering','Mateo Fernandez','#analytics-eng-oncall'],step:'Snowpipe loads the curated files into Snowflake',
+{t:'e',name:'Glue to Snowflake',short:'Snowpipe',ic:'arrow-right',type:'Pipeline',own:['Analytics Engineering','Matthew Harris','#analytics-eng-oncall'],step:'Snowpipe loads the curated files into Snowflake',
  mech:'Glue ETL job (PySpark) and Snowpipe',trig:'When curated files arrive',spd:'About 6 min end to end',cl:'Transform, then load',
  code:`df = spark.table("raw.customers").dropDuplicates(["customer_id"])
 df = df.withColumn("email", lower(col("email")))
@@ -308,7 +299,7 @@ FROM @curated_customers_stage FILE_FORMAT = (TYPE = PARQUET);`,
   ['Data ready by','02:35'],
   ['Watched by','Analytics Engineering'],
   ['If it breaks','Warehouse tables stay one day behind']]}},
-{t:'n',name:'Snowflake warehouse',short:'Snowflake',sub:'Warehouse',ic:'snowflake',type:'Warehouse',own:['Analytics Engineering','Isha Verma','#analytics-eng'],step:'Customer tables are ready to query',
+{t:'n',name:'Snowflake warehouse',short:'Snowflake',sub:'Warehouse',ic:'snowflake',type:'Warehouse',own:['Analytics Engineering','Amanda Clark','#analytics-eng'],step:'Customer tables are ready to query',
  meta:{sched:'Fresh by 02:35 daily',win:[9,18],winTxt:'Busiest 09:00 to 18:00 on weekdays',rows:[
   ['Used by','Marketing: campaign and loyalty analysis<br>Finance: revenue and forecasts<br>Merchandising and store operations<br>Data science: churn models'],
   ['Month-end','Heavy finance queries in the last business days'],
@@ -324,7 +315,7 @@ FROM analytics.customer.dim_customer;`,
   ['Duration','About 3 min'],
   ['Credentials','OAuth, reviewed every 90 days'],
   ['If it fails','Dashboards stay one day behind']]}},
-{t:'n',name:'Power BI reports',short:'Power BI',sub:'Reports',ic:'chart-bar',type:'Destination',own:['BI and Reporting','Camila Herrera','#bi-reports'],step:'Dashboards and C-suite PDFs are updated',
+{t:'n',name:'Power BI reports',short:'Power BI',sub:'Reports',ic:'chart-bar',type:'Destination',own:['BI and Reporting','Megan Lewis','#bi-reports'],step:'Dashboards and C-suite PDFs are updated',
  meta:{sched:'Refreshed daily at 06:00',win:[7,11],winTxt:'Busiest 07:00 to 11:00',rows:[
   ['Used by','C-suite: weekly PDF report<br>Regional and store managers<br>Marketing and finance analysts'],
   ['PDF export','Mondays at 08:00'],
@@ -339,8 +330,8 @@ function box(h,c){return '<div class="wb"><div class="wh">'+h+'</div><div class=
 function tbl(h,r,w){return '<table><colgroup>'+w.map(function(x){return '<col style="width:'+x+'%">'}).join('')+'</colgroup><thead><tr>'+h.map(function(x){return '<th>'+esc(x)+'</th>'}).join('')+'</tr></thead><tbody>'+r.map(function(row){return '<tr>'+row.map(function(c){return '<td>'+esc(c)+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table>'}
 function kv(a){return '<div class="kv">'+a.map(function(x){return '<span>'+x[0]+'</span><span>'+x[1]+'</span>'}).join('')+'</div>'}
 var NB={
-0:function(){return '<div class="lab">Sample request: get customer information</div>'+code('GET /v1/customers/C-104582\nAuthorization: Bearer ********')+'<div class="lab" style="margin-top:12px">Response body (200 OK, 118 ms)</div>'+code('{\n  "customer_id": "C-104582",\n  "first_name": "Meera",\n  "last_name": "Kulkarni",\n  "email": "meera.k@example.com",\n  "phone": "+91 98765 43210",\n  "loyalty_tier": "Gold",\n  "preferred_store": "Pune-014",\n  "updated_at": "2026-10-28T07:42:10Z"\n}')},
-2:function(){return box('<i class="ti ti-database" aria-hidden="true"></i> customers-db.prod &middot; PostgreSQL 15 &middot; ap-south-1 &middot; online','<div class="lab">public.customers &middot; 2,481,930 rows</div>'+tbl(['customer_id','name','email','phone','updated_at'],[['C-104582','Meera Kulkarni','meera.k@example.com','+91 98765 43210','2026-10-28 07:42'],['C-104583','Carlos Mendoza','c.mendoza@example.com','+52 55 5550 0142','2026-10-28 07:44'],['C-104584','Emily Johnson','emily.j@example.com','+1 415 555 0178','2026-10-28 07:51'],['C-104585','Arjun Nair','arjun.n@example.com','+91 99887 76655','2026-10-28 08:03']],[15,18,26,21,20]))},
+0:function(){return '<div class="lab">Sample request: get customer information</div>'+code('GET /v1/customers/C-104582\nAuthorization: Bearer ********')+'<div class="lab" style="margin-top:12px">Response body (200 OK, 118 ms)</div>'+code('{\n  "customer_id": "C-104582",\n  "first_name": "Jennifer",\n  "last_name": "Parker",\n  "email": "jennifer.p@example.com",\n  "phone": "+1 212 555 0198",\n  "loyalty_tier": "Gold",\n  "preferred_store": "Austin-022",\n  "updated_at": "2026-10-28T07:42:10Z"\n}')},
+2:function(){return box('<i class="ti ti-database" aria-hidden="true"></i> customers-db.prod &middot; PostgreSQL 15 &middot; ap-south-1 &middot; online','<div class="lab">public.customers &middot; 2,481,930 rows</div>'+tbl(['customer_id','name','email','phone','updated_at'],[['C-104582','Jennifer Parker','jennifer.p@example.com','+1 212 555 0198','2026-10-28 07:42'],['C-104583','Michael Brooks','michael.b@example.com','+1 415 555 0142','2026-10-28 07:44'],['C-104584','Emily Johnson','emily.j@example.com','+1 312 555 0178','2026-10-28 07:51'],['C-104585','Tyler Reed','tyler.r@example.com','+1 646 555 0133','2026-10-28 08:03']],[15,18,26,21,20]))},
 4:function(){return box('<i class="ti ti-bucket" aria-hidden="true"></i> s3://acme-retail-lake/raw/customers/dt=2026-10-28/','<div class="lab">Earlier partitions: dt=2026-10-27/, dt=2026-10-26/</div>'+tbl(['Name','Size','Last modified'],[['part-0000.snappy.parquet','128 MB','02:14'],['part-0001.snappy.parquet','126 MB','02:14'],['part-0002.snappy.parquet','94 MB','02:15'],['_SUCCESS','0 B','02:15']],[56,16,28]))},
 6:function(){return box('<i class="ti ti-settings" aria-hidden="true"></i> AWS Glue &middot; ETL jobs',kv([['Job','customers_clean_etl'],['Status','Succeeded'],['Run time','6 min 12 s'],['Workers','10 (G.1X)'],['Rows in','2,481,930'],['Rows out','2,468,210'],['Duplicates removed','13,720']]))+box('Athena &middot; query editor',code('SELECT loyalty_tier, COUNT(*) AS customers\nFROM curated.customers\nGROUP BY loyalty_tier;'))},
 8:function(){return box('<i class="ti ti-snowflake" aria-hidden="true"></i> Worksheet &middot; ANALYTICS_WH (Small) &middot; ANALYTICS.CUSTOMER',code('SELECT loyalty_tier, COUNT(*) AS customers\nFROM analytics.customer.dim_customer\nGROUP BY loyalty_tier\nORDER BY customers DESC;')+'<div style="height:8px"></div>'+tbl(['loyalty_tier','customers'],[['Bronze','1,161,000'],['Silver','894,330'],['Gold','412,880']],[50,50]))},
@@ -381,9 +372,9 @@ function pbbar(n,c,w,v){return '<div class="pb-b"><span>'+n+'</span><div style="
 function scrow(n,t){var c=t==='string'?'background:#e0f2fe;color:#0369a1':'background:#f3e8ff;color:#7e22ce';return '<div class="sc"><span class="mono">'+n+'</span><span class="ty" style="'+c+'">'+t+'</span></div>'}
 function hist(d){return '<div style="display:flex;justify-content:space-between"><span>'+d+' &middot; 3 min</span><span class="ok-chip">Completed</span></div>'}
 var UI={
-0:function(){return '<div class="shot"><div class="pm-top">API client &middot; Customers</div><div class="pm-url"><span class="pm-m">GET</span><span class="pm-in">{{base_url}}/v1/customers/C-104582</span><span class="pm-send">Send</span></div><div class="pm-tabs"><span>Params</span><b>Authorization</b><span>Headers</span><span>Body</span></div><div class="pm-au">Bearer Token &nbsp; <span class="mono">********</span></div><div class="pm-res"><span>Body</span><span>Headers</span><span class="pm-ok">200 OK</span><span>118 ms</span><span>412 B</span></div><div class="jsn">'+J([['customer_id','C-104582'],['first_name','Meera'],['last_name','Kulkarni'],['email','meera.k@example.com'],['phone','+91 98765 43210'],['loyalty_tier','Gold'],['updated_at','2026-10-28T07:42:10Z']])+'</div></div>'},
+0:function(){return '<div class="shot"><div class="pm-top">API client &middot; Customers</div><div class="pm-url"><span class="pm-m">GET</span><span class="pm-in">{{base_url}}/v1/customers/C-104582</span><span class="pm-send">Send</span></div><div class="pm-tabs"><span>Params</span><b>Authorization</b><span>Headers</span><span>Body</span></div><div class="pm-au">Bearer Token &nbsp; <span class="mono">********</span></div><div class="pm-res"><span>Body</span><span>Headers</span><span class="pm-ok">200 OK</span><span>118 ms</span><span>412 B</span></div><div class="jsn">'+J([['customer_id','C-104582'],['first_name','Jennifer'],['last_name','Parker'],['email','jennifer.p@example.com'],['phone','+1 212 555 0198'],['loyalty_tier','Gold'],['updated_at','2026-10-28T07:42:10Z']])+'</div></div>'},
 1:function(){return '<div class="shot"><div class="aw-top"><span class="aw-logo"></span>Lambda &rsaquo; customers-ingest <span class="ok-chip" style="margin-left:auto">Active</span></div><div class="ed-code"><span class="cp">def</span> <span class="cy">handler</span>(event, ctx):\n    body = json.loads(event[<span class="cg">"body"</span>])\n    <span class="cy">validate</span>(body)\n    <span class="cy">upsert_customer</span>(body)\n    <span class="cp">return</span> {<span class="cg">"statusCode"</span>: <span class="co">201</span>}</div><div class="ft"><span class="gd"></span>Last invocation: Success &middot; 118 ms<span class="aw-btn p" style="margin-left:auto">Test</span></div></div>'},
-2:function(){return '<div class="shot"><div class="tm-bar">'+DOTS+'&nbsp;deploy@db-prod-01: ~</div><div class="tm"><span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ systemctl status postgresql\n<span class="g">&#9679;</span> postgresql@15-main.service\n   Active: <span class="g">active (running)</span> since 41 days ago\n<span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ psql customers -c "SELECT customer_id, email FROM customers LIMIT 3;"\n<span class="c"> customer_id |        email</span>\n-------------+----------------------\n C-104582    | meera.k@example.com\n C-104583    | c.mendoza@example.com\n C-104584    | emily.j@example.com\n<span class="gy">(3 rows)</span>\n<span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ <span style="background:#ddd;display:inline-block;width:6px;height:11px"></span></div></div>'},
+2:function(){return '<div class="shot"><div class="tm-bar">'+DOTS+'&nbsp;deploy@db-prod-01: ~</div><div class="tm"><span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ systemctl status postgresql\n<span class="g">&#9679;</span> postgresql@15-main.service\n   Active: <span class="g">active (running)</span> since 41 days ago\n<span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ psql customers -c "SELECT customer_id, email FROM customers LIMIT 3;"\n<span class="c"> customer_id |        email</span>\n-------------+------------------------\n C-104582    | jennifer.p@example.com\n C-104583    | michael.b@example.com\n C-104584    | emily.j@example.com\n<span class="gy">(3 rows)</span>\n<span class="g">deploy@db-prod-01</span>:<span class="bl">~</span>$ <span style="background:#ddd;display:inline-block;width:6px;height:11px"></span></div></div>'},
 3:function(){return '<div class="shot"><div class="tm-bar">'+DOTS+'&nbsp;hadoop@emr-master: ~</div><div class="tm"><span class="g">hadoop@emr-master</span>:<span class="bl">~</span>$ spark-submit extract_customers.py\n<span class="c">INFO</span> read customers where updated_at &gt; watermark\n<span class="c">INFO</span> stage 3: <span class="y">180,204</span> rows\n<div class="pg"><div style="width:59%"></div></div><span class="gy">(38 + 4) / 64 tasks</span>\n<span class="c">INFO</span> wrote s3://acme-retail-lake/raw/customers/dt=2026-10-28/\n<span class="g">INFO job finished in 4m 02s</span></div></div>'},
 4:function(){return '<div class="shot"><div class="aw-top"><span class="aw-logo"></span>Amazon S3 <span style="opacity:.7">&rsaquo; Buckets</span></div><div class="aw-bc">acme-retail-lake / raw / customers / dt=2026-10-28 /</div><div class="aw-tabs"><b>Objects</b><span>Properties</span><span>Permissions</span></div><div class="aw-tb"><span class="aw-btn">Copy S3 URI</span><span class="aw-btn">Download</span><span class="aw-btn p">Upload</span></div>'+s3row(0,'part-0000.snappy.parquet','128 MB')+s3row(0,'part-0001.snappy.parquet','126 MB')+s3row(0,'part-0002.snappy.parquet','94 MB')+s3row(0,'_SUCCESS','0 B')+'</div>'},
 5:function(){return '<div class="shot"><div class="aw-top"><span class="aw-logo"></span>Glue &rsaquo; Crawlers <span class="ok-chip" style="margin-left:auto">Succeeded</span></div><div class="aw-bc" style="color:#111;font-weight:600">raw_customers_crawler</div><div class="stg"><span>Last run</span><b>02:16</b><span>Duration</span><b>54 s</b><span>Tables</span><b>1 updated</b><span>Added</span><b>0</b></div>'+scrow('customer_id','string')+scrow('email','string')+scrow('phone','string')+scrow('updated_at','timestamp')+'</div>'},
